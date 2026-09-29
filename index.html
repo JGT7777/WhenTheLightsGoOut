@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhenTheLightsGoOut</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --panel-bg: #000000;
+            --accent-green: #00ff66;
+            --accent-red: #ff1122;
+            --accent-cyan: #00e5ff;
+            --text-color: #a0a7b5;
+            --flashlight-size: 200px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            background-color: var(--panel-bg);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #viewport {
+            flex: 1;
+            position: relative;
+            background-color: #000000;
+            overflow: hidden;
+        }
+
+        #grid {
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 15px;
+            padding: 30px;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .number-card {
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.5rem;
+            font-weight: 800;
+            font-family: monospace;
+            position: relative;
+            transition: border-color 0.2s;
+        }
+
+        .number-card.empty-slot {
+            border: 1px dashed rgba(255, 255, 255, 0.01);
+            background: transparent;
+        }
+
+        #darkness-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+            background: #000000;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #darkness-layer.active {
+            opacity: 1;
+            background: radial-gradient(
+                circle var(--flashlight-size) at var(--mouse-x, 50%) var(--mouse-y, 50%),
+                rgba(255, 235, 170, 0.25) 0%,
+                rgba(255, 200, 100, 0.12) 35%,
+                rgba(15, 10, 5, 0.88) 70%,
+                rgba(0, 0, 0, 0.99) 100%
+            );
+        }
+
+        #status-banner {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(5, 6, 10, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px 28px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            z-index: 12;
+            color: var(--accent-cyan);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.9);
+        }
+
+        .banner-pop {
+            animation: bannerGlitchIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes bannerGlitchIn {
+            0% {
+                opacity: 0;
+                transform: translateX(-50%) scale(0.6) skewX(-15deg);
+                filter: blur(8px);
+            }
+            50% {
+                opacity: 0.8;
+                transform: translateX(-50%) scale(1.1) skewX(5deg);
+                filter: blur(2px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateX(-50%) scale(1) skewX(0deg);
+                filter: blur(0px);
+            }
+        }
+
+        .overlay-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(2, 2, 4, 0.98);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .overlay-screen.hidden {
+            display: none;
+        }
+
+        .overlay-title {
+            font-size: 2.2rem;
+            color: #ffffff;
+            margin-bottom: 20px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            font-weight: 900;
+        }
+
+        .creepy-title {
+            color: #ff1122;
+            font-size: 2.5rem;
+            margin-bottom: 25px;
+            text-shadow: 0 0 10px rgba(255, 17, 34, 0.8), 0 0 20px rgba(255, 0, 0, 0.5);
+            animation: glitch-flicker 3s infinite;
+        }
+
+        @keyframes glitch-flicker {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            3% { opacity: 0.3; transform: skewX(-5deg); }
+            6% { opacity: 1; transform: scale(1.02); }
+            77% { opacity: 1; }
+            78% { opacity: 0.2; }
+            79% { opacity: 0.9; }
+            80% { opacity: 1; }
+            95% { opacity: 1; }
+            96% { opacity: 0.4; }
+            97% { opacity: 1; }
+        }
+
+        .overlay-desc {
+            color: #a0a7b5;
+            max-width: 420px;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            margin-bottom: 35px;
+            letter-spacing: 1px;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        .btn-option {
+            background: #0a0c12;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            font-family: monospace;
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 15px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-option:hover {
+            background: var(--accent-cyan);
+            color: #000000;
+            border-color: var(--accent-cyan);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background: #111116;
+            color: #ff3344;
+            border: 1px solid #ff1122;
+            font-weight: bold;
+            font-size: 1.1rem;
+            padding: 16px 45px;
+            border-radius: 4px;
+            cursor: pointer;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            transition: all 0.3s;
+            box-shadow: 0 0 15px rgba(255, 17, 34, 0.15);
+        }
+
+        .btn-primary:hover {
+            background: #ff1122;
+            color: #000000;
+            transform: scale(1.04);
+            box-shadow: 0 0 30px rgba(255, 17, 34, 0.6);
+        }
+
+        #screen-ending-image {
+            padding: 0;
+            background: #000;
+            cursor: pointer;
+        }
+
+        #screen-ending-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        #jumpscare-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000;
+            z-index: 30;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        #jumpscare-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+            animation: flash-shake 0.1s infinite alternate;
+        }
+
+        #jumpscare-overlay img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #jumpscare-svg {
+            width: 75%;
+            height: 75%;
+            fill: #ff1122;
+            filter: drop-shadow(0 0 30px #ff0000);
+        }
+
+        @keyframes flash-shake {
+            0% {
+                transform: translate(10px, 10px) scale(1.08);
+                background-color: #330000;
+            }
+            50% {
+                transform: translate(-10px, -8px) scale(1);
+                background-color: #000000;
+            }
+            100% {
+                transform: translate(8px, -10px) scale(1.12);
+                background-color: #660000;
+            }
+        }
+
+        .c-0 { color: #ff3344; text-shadow: 0 0 10px rgba(255, 51, 68, 0.4); }
+        .c-1 { color: #00e5ff; text-shadow: 0 0 10px rgba(0, 229, 255, 0.4); }
+        .c-2 { color: #00ff66; text-shadow: 0 0 10px rgba(0, 255, 102, 0.4); }
+        .c-3 { color: #ffea00; text-shadow: 0 0 10px rgba(255, 234, 0, 0.4); }
+        .c-4 { color: #ff0055; text-shadow: 0 0 10px rgba(255, 0, 85, 0.4); }
+        .c-5 { color: #b000ff; text-shadow: 0 0 10px rgba(176, 0, 255, 0.4); }
+        .c-6 { color: #ff9900; text-shadow: 0 0 10px rgba(255, 153, 0, 0.4); }
+        .c-7 { color: #00ffcc; text-shadow: 0 0 10px rgba(0, 255, 204, 0.4); }
+        .c-8 { color: #ff66cc; text-shadow: 0 0 10px rgba(255, 102, 204, 0.4); }
+        .c-9 { color: #ffffff; text-shadow: 0 0 10px rgba(255, 255, 255, 0.4); }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="viewport">
+            <div id="grid"></div>
+            <div id="darkness-layer"></div>
+            <div id="status-banner" class="banner-pop">REMEMBER THEM....</div>
+
+            <div class="overlay-screen" id="screen-start">
+                <div class="overlay-title creepy-title">WhenTheLightsGoOut</div>
+                <button class="btn-primary" id="btn-start">PLAY</button>
+            </div>
+
+            <div class="overlay-screen hidden" id="screen-report">
+                <div class="overlay-title">How many anomalies did you see?</div>
+                <div class="options-grid">
+                    <button class="btn-option" onclick="submitReport(0)">0</button>
+                    <button class="btn-option" onclick="submitReport(1)">1</button>
+                    <button class="btn-option" onclick="submitReport(2)">2</button>
+                    <button class="btn-option" onclick="submitReport(3)">3</button>
+                    <button class="btn-option" onclick="submitReport(4)">4+</button>
+                </div>
+            </div>
+
+            <div class="overlay-screen hidden" id="screen-result">
+                <div class="overlay-title" id="result-title">CORRECT</div>
+                <div class="overlay-desc" id="result-desc">
+                    You found 0 anomalies
+                </div>
+                <button class="btn-primary" id="btn-result-action" onclick="handleResultAction()">CONTINUE</button>
+            </div>
+
+            <div class="overlay-screen hidden" id="screen-ending-image">
+                <img src="ending.png" alt="Ending" id="ending-img">
+            </div>
+
+            <div id="jumpscare-overlay">
+                <img id="jumpscare-img" src="jumpscare_fail.png" alt="Jumpscare" onerror="this.style.display='none'; document.getElementById('jumpscare-svg').style.display='block';">
+                <svg id="jumpscare-svg" viewBox="0 0 100 100" style="display:none;">
+                    <path d="M50,5 C25,5 10,25 10,50 C10,75 25,95 50,95 C75,95 90,75 90,50 C90,25 75,5 50,5 Z M30,35 C35,35 40,40 40,45 C40,50 35,55 30,55 C25,55 20,50 20,45 C20,40 25,35 30,35 Z M70,35 C75,35 80,40 80,45 C80,50 75,55 70,55 C65,55 60,50 60,45 C60,40 65,35 70,35 Z M50,65 C65,65 75,80 50,85 C25,80 35,65 50,65 Z"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MAX_GRID_SLOTS = 12;
+        let round = 1;
+        let activeCardCount = 4;
+        let activeIndices = [];
+        let currentNumbers = {};
+        let actualAnomalies = 0;
+        let audioCtx = null;
+        let isPhaseDark = false;
+        let jumpscareTriggered = false;
+        let jumpscareIndex = -1;
+        let endingTimer = null;
+
+        const gridEl = document.getElementById('grid');
+        const darknessLayer = document.getElementById('darkness-layer');
+        const statusBanner = document.getElementById('status-banner');
+        const viewport = document.getElementById('viewport');
+        const jumpscareOverlay = document.getElementById('jumpscare-overlay');
+        
+        const screenStart = document.getElementById('screen-start');
+        const screenReport = document.getElementById('screen-report');
+        const screenResult = document.getElementById('screen-result');
+        const screenEndingImage = document.getElementById('screen-ending-image');
+
+        function updateBannerText(text, color) {
+            statusBanner.textContent = text;
+            statusBanner.style.color = color;
+            statusBanner.classList.remove('banner-pop');
+            void statusBanner.offsetWidth; // Trigger reflow
+            statusBanner.classList.add('banner-pop');
+        }
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+            
+            if (type === 'click') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.05);
+            } 
+            else if (type === 'darkness') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(60, now);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 1.5);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 1.5);
+            }
+            else if (type === 'jumpscare') {
+                const failAudio = new Audio('jumpscare_fail.mp3');
+                failAudio.play().catch(() => {
+                    const osc1 = audioCtx.createOscillator();
+                    const osc2 = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+
+                    osc1.type = 'sawtooth';
+                    osc2.type = 'square';
+
+                    osc1.frequency.setValueAtTime(800, now);
+                    osc1.frequency.linearRampToValueAtTime(1200, now + 0.4);
+
+                    osc2.frequency.setValueAtTime(850, now);
+                    osc2.frequency.linearRampToValueAtTime(300, now + 0.4);
+
+                    gain.gain.setValueAtTime(0.8, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+
+                    osc1.connect(gain);
+                    osc2.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    osc1.start(now);
+                    osc2.start(now);
+                    osc1.stop(now + 0.5);
+                    osc2.stop(now + 0.5);
+                });
+            }
+        }
+
+        viewport.addEventListener('mousemove', (e) => {
+            const rect = viewport.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            darknessLayer.style.setProperty('--mouse-x', `${x}px`);
+            darknessLayer.style.setProperty('--mouse-y', `${y}px`);
+
+            if (isPhaseDark && !jumpscareTriggered && jumpscareIndex !== -1) {
+                const targetCard = gridEl.children[jumpscareIndex];
+                if (targetCard) {
+                    const cardRect = targetCard.getBoundingClientRect();
+                    const cardCenterX = cardRect.left + cardRect.width / 2 - rect.left;
+                    const cardCenterY = cardRect.top + cardRect.height / 2 - rect.top;
+                    
+                    const dist = Math.hypot(x - cardCenterX, y - cardCenterY);
+                    if (dist < 80) {
+                        triggerJumpscare(null);
+                    }
+                }
+            }
+        });
+
+        document.getElementById('btn-start').addEventListener('click', () => {
+            initAudio();
+            playSound('click');
+            screenStart.classList.add('hidden');
+            round = 1;
+            startPhaseLight();
+        });
+
+        function startPhaseLight() {
+            isPhaseDark = false;
+            jumpscareTriggered = false;
+            jumpscareIndex = -1;
+            darknessLayer.classList.remove('active');
+            updateBannerText("REMEMBER THEM....", "var(--accent-cyan)");
+
+            activeCardCount = Math.min(4 + (round - 1) * 2, MAX_GRID_SLOTS);
+
+            generateGrid();
+
+            setTimeout(() => {
+                startPhaseDarkness();
+            }, 5000);
+        }
+
+        function generateGrid() {
+            gridEl.innerHTML = '';
+            currentNumbers = {};
+
+            const allIndices = Array.from({ length: MAX_GRID_SLOTS }, (_, i) => i);
+            allIndices.sort(() => Math.random() - 0.5);
+            activeIndices = allIndices.slice(0, activeCardCount);
+
+            for (let i = 0; i < MAX_GRID_SLOTS; i++) {
+                const card = document.createElement('div');
+                
+                if (activeIndices.includes(i)) {
+                    const val = Math.floor(Math.random() * 10);
+                    const colorIdx = Math.floor(Math.random() * 10);
+
+                    currentNumbers[i] = { val, colorIdx };
+                    card.className = `number-card c-${colorIdx}`;
+                    card.textContent = val;
+                } else {
+                    card.className = 'number-card empty-slot';
+                }
+
+                gridEl.appendChild(card);
+            }
+        }
+
+        function startPhaseDarkness() {
+            isPhaseDark = true;
+            darknessLayer.classList.add('active');
+            updateBannerText("SEARCH FOR ANOMALIES", "var(--accent-red)");
+            playSound('darkness');
+
+            applyAnomalies();
+
+            setTimeout(() => {
+                if (isPhaseDark) {
+                    startPhaseReport();
+                }
+            }, 8000);
+        }
+
+        function applyAnomalies() {
+            actualAnomalies = 0;
+            const cards = gridEl.children;
+
+            const countToApply = Math.floor(Math.random() * 4); 
+            const shuffledActive = [...activeIndices].sort(() => Math.random() - 0.5);
+
+            let emptyAnomalyUsed = false; // Control para permitir máximo 1 celda vacía por ronda
+
+            for (let i = 0; i < Math.min(countToApply, shuffledActive.length); i++) {
+                const idx = shuffledActive[i];
+                const card = cards[idx];
+                const item = currentNumbers[idx];
+
+                // Si ya se usó la anomalía vacía, solo elegimos entre cambio de número (0) o de color (1)
+                let anomalyType = Math.floor(Math.random() * (emptyAnomalyUsed ? 2 : 3));
+
+                if (anomalyType === 0) {
+                    let newVal = (item.val + Math.floor(Math.random() * 8) + 1) % 10;
+                    card.textContent = newVal;
+                } else if (anomalyType === 1) {
+                    let newColor = (item.colorIdx + Math.floor(Math.random() * 8) + 1) % 10;
+                    card.className = `number-card c-${newColor}`;
+                } else {
+                    card.textContent = '';
+                    emptyAnomalyUsed = true;
+                }
+
+                actualAnomalies++;
+            }
+
+            if (Math.random() < 0.4 && activeIndices.length > 0) {
+                jumpscareIndex = activeIndices[Math.floor(Math.random() * activeIndices.length)];
+            }
+        }
+
+        function triggerJumpscare(onComplete) {
+            jumpscareTriggered = true;
+            playSound('jumpscare');
+            jumpscareOverlay.classList.add('active');
+
+            setTimeout(() => {
+                jumpscareOverlay.classList.remove('active');
+                if (onComplete) {
+                    onComplete();
+                } else {
+                    startPhaseReport();
+                }
+            }, 800);
+        }
+
+        function startPhaseReport() {
+            isPhaseDark = false;
+            darknessLayer.classList.remove('active');
+            screenReport.classList.remove('hidden');
+        }
+
+        function submitReport(userChoice) {
+            playSound('click');
+            screenReport.classList.add('hidden');
+
+            let isCorrect = false;
+
+            if (userChoice === 4 && actualAnomalies >= 4) {
+                isCorrect = true;
+            } else if (userChoice === actualAnomalies) {
+                isCorrect = true;
+            }
+
+            if (isCorrect) {
+                const titleEl = document.getElementById('result-title');
+                const descEl = document.getElementById('result-desc');
+                titleEl.textContent = "CORRECT";
+                titleEl.style.color = "var(--accent-green)";
+                descEl.textContent = `You found ${actualAnomalies} anomalies`;
+                screenResult.classList.remove('hidden');
+            } else {
+                triggerJumpscare(() => {
+                    showEndingImage();
+                });
+            }
+        }
+
+        function showEndingImage() {
+            screenEndingImage.classList.remove('hidden');
+
+            endingTimer = setTimeout(() => {
+                closeEndingImage();
+            }, 4000);
+
+            window.addEventListener('click', closeEndingImageOnInput, { once: true });
+            window.addEventListener('keydown', closeEndingImageOnInput, { once: true });
+        }
+
+        function closeEndingImageOnInput() {
+            if (endingTimer) clearTimeout(endingTimer);
+            closeEndingImage();
+        }
+
+        function closeEndingImage() {
+            window.removeEventListener('click', closeEndingImageOnInput);
+            window.removeEventListener('keydown', closeEndingImageOnInput);
+            screenEndingImage.classList.add('hidden');
+            
+            round = 1;
+            screenStart.classList.remove('hidden');
+        }
+
+        function handleResultAction() {
+            playSound('click');
+            screenResult.classList.add('hidden');
+            round++;
+            startPhaseLight();
+        }
+    </script>
+</body>
+</html>
+
